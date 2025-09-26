@@ -18,10 +18,10 @@ def generate_launch_description():
     # arguments
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
 
-    points_topic = LaunchConfiguration('points_topic', default='/velodyne_points')
+    points_topic = LaunchConfiguration('points_topic', default='/sync_velo')
     odom_child_frame_id = LaunchConfiguration('odom_child_frame_id', default='velodyne')
-    imu_topic = LaunchConfiguration('imu_topic', default='/imu/data')
-    globalmap_pcd = DeclareLaunchArgument('globalmap_pcd', default_value='/home/lsk/ndt_ws/src/map.pcd', description='Path to the global map PCD file')
+    imu_topic = LaunchConfiguration('imu_topic', default='/sync_imu')
+    globalmap_pcd = DeclareLaunchArgument('globalmap_pcd', default_value='/home/robit/colcon_ws/src/map.pcd', description='Path to the global map PCD file')
 
     # optional arguments
     use_imu = LaunchConfiguration('use_imu', default='true')
@@ -75,7 +75,7 @@ def generate_launch_description():
                 # remapping
                 # 원래는 /velodyne_points, /gpsimu_driver/imu_data 토픽이 들어올 때 imu, lidar callback이 수행되는데,
                 # remapping을 통해서 points_topic, imu_topic이 들어올 때 callback이 수행되도록 함.
-                remappings=[('/velodyne_points', points_topic), ('/imu/data', imu_topic),('/gpsimu_driver/imu_data', imu_topic)],
+                remappings=[('/sync_velo', points_topic), ('/sync_imu', imu_topic),('/gpsimu_driver/imu_data', imu_topic)],
                 parameters=[
                     {'odom_child_frame_id': odom_child_frame_id},
                     {'use_imu': use_imu},
@@ -86,10 +86,10 @@ def generate_launch_description():
                     {'robot_odom_frame_id': robot_odom_frame_id},
                     # <!-- available reg_methods: NDT_OMP, NDT_CUDA_P2D, NDT_CUDA_D2D-->
                     {'reg_method': 'NDT_OMP'},
-                    {'ndt_neighbor_search_method': 'DIRECT7'},
-                    {'ndt_neighbor_search_radius': 1.0},
-                    {'ndt_resolution': 0.5},
-                    {'downsample_resolution': 0.1},
+                    {'ndt_neighbor_search_method': 'KDTREE'},
+                    {'ndt_neighbor_search_radius': 2.5},
+                    {'ndt_resolution': 0.8},
+                    {'downsample_resolution': 0.6},
                     {'specify_init_pose': True},
                     {'init_pos_x': 0.0},
                     {'init_pos_y': 0.0},
@@ -107,7 +107,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'globalmap_pcd',
-            default_value='/home/lsk/ndt_ws/src/map.pcd',
+            default_value='/home/robit/colcon_ws/src/map.pcd',
             description='Path to the global map PCD file'
         ),
         launch_ros.actions.SetParameter(name='use_sim_time', value=True),

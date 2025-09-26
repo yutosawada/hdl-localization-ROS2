@@ -64,7 +64,7 @@ public:
       RCLCPP_INFO(get_logger(), "enable imu-based prediction");
       imu_sub = create_subscription<sensor_msgs::msg::Imu>("/gpsimu_driver/imu_data", 256, std::bind(&HdlLocalizationNodelet::imu_callback, this, std::placeholders::_1));
     }
-    points_sub = create_subscription<sensor_msgs::msg::PointCloud2>("/velodyne_points", 5, std::bind(&HdlLocalizationNodelet::points_callback, this, std::placeholders::_1));
+    points_sub = create_subscription<sensor_msgs::msg::PointCloud2>("/sync_velo", 5, std::bind(&HdlLocalizationNodelet::points_callback, this, std::placeholders::_1));
 
     auto latch_qos = rclcpp::QoS(1).transient_local();
     globalmap_sub = create_subscription<sensor_msgs::msg::PointCloud2>("/globalmap", latch_qos, std::bind(&HdlLocalizationNodelet::globalmap_callback, this, std::placeholders::_1));
