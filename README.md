@@ -5,6 +5,12 @@
 The following package is a version of hdl-localization-ROS2 built for the Humble distribution without using Docker.
 You can refer to the original [hdl localization repository](https://github.com/koide3/hdl_localization.git) for a detailed explanation of the ROS1 version.
 
+## Test Environment
+
+| ROS | Humble |
+| lidar | velodyne VLP-16 |
+| imu | xsens mti-610, ebimu |
+
 
 ## TO DO
 To use your own data, modify the path to the `.pcd` file, `Imu topic`, and `Lidar topic` in the file `hdl-localization-ROS2/hdl_localization/launch/hdl_localization_2.launch.py`.
