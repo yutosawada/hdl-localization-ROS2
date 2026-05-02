@@ -22,7 +22,9 @@
 #include <pcl/filters/voxel_grid.h>
 
 #include <pclomp/ndt_omp.h>
+#ifdef USE_VGICP_CUDA
 #include <fast_gicp/ndt/ndt_cuda.hpp>
+#endif
 
 #include <hdl_localization/pose_estimator.hpp>
 #include <hdl_localization/delta_estimater.hpp>
@@ -122,7 +124,9 @@ private:
         ndt->setNeighborhoodSearchMethod(pclomp::KDTREE);
       }
       return ndt;
-    } else if(reg_method.find("NDT_CUDA") != std::string::npos) {
+    }
+#ifdef USE_VGICP_CUDA
+    else if(reg_method.find("NDT_CUDA") != std::string::npos) {
       RCLCPP_INFO(get_logger(), "NDT_CUDA is selected");
       auto ndt = std::make_shared<fast_gicp::NDTCuda<PointT, PointT>>();     //fixed ros2
       ndt->setResolution(ndt_resolution);
@@ -147,6 +151,12 @@ private:
       }
       return std::static_pointer_cast<pcl::Registration<PointT, PointT>>(ndt); //fixed ros2
     }
+#else
+    else if(reg_method.find("NDT_CUDA") != std::string::npos) {
+      RCLCPP_ERROR(get_logger(), "NDT_CUDA is requested but hdl_localization was built without CUDA support. Use NDT_OMP instead.");
+      return nullptr;
+    }
+#endif
 
     RCLCPP_ERROR_STREAM(get_logger(), "unknown registration method:" << reg_method);
     return nullptr;
@@ -171,8 +181,18 @@ private:
     bool specify_init_pose = declare_parameter<bool>("specify_init_pose", true);
     if (specify_init_pose) {
       RCLCPP_INFO(get_logger(), "initialize pose estimator with specified parameters!!");
+      // get_clock()->now() を Node 構築時に呼ぶと use_sim_time=true でも RCL_SYSTEM_TIME
+      // を返すケースがあり (sim 起動直後の ComposableNode で実測)、後続の callback で
+      // sim time stamp と比較した際に "can't compare times with different time sources"
+      // で std::runtime_error が throw される. init_stamp を Node のクロック種別
+      // (use_sim_time=true なら RCL_ROS_TIME) を持つゼロ Time にすることで回避.
+      bool use_sim_time_param = false;
+      this->get_parameter_or<bool>("use_sim_time", use_sim_time_param, false);
+      const rcl_clock_type_t init_clock_type =
+        use_sim_time_param ? RCL_ROS_TIME : get_clock()->get_clock_type();
+      const rclcpp::Time init_stamp(0, 0, init_clock_type);
       pose_estimator.reset(new hdl_localization::PoseEstimator(registration,
-        get_clock()->now(),
+        init_stamp,
         Eigen::Vector3f(declare_parameter<double>("init_pos_x", 0.0), declare_parameter<double>("init_pos_y", 0.0), declare_parameter<double>("init_pos_z", 0.0)),
         Eigen::Quaternionf(declare_parameter<double>("init_ori_w", 1.0), declare_parameter<double>("init_ori_x", 0.0), declare_parameter<double>("init_ori_y", 0.0), declare_parameter<double>("init_ori_z", 0.0)),
         cool_time_duration
@@ -183,20 +203,12 @@ private:
 private:
 
   void imu_callback(const sensor_msgs::msg::Imu::ConstSharedPtr imu_msg) {
-    // RCLCPP_INFO(get_logger(), "----------------"); 
-    // RCLCPP_INFO(get_logger(), "imu_callback"); 
-    // RCLCPP_INFO(get_logger(), "----------------"); 
     std::lock_guard<std::mutex> lock(imu_data_mutex);
     imu_data.push_back(imu_msg);
   }
 
 
   void points_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr points_msg) {
-    // RCLCPP_INFO(get_logger(), ""); 
-    // RCLCPP_INFO(get_logger(), "points_callback"); 
-    // RCLCPP_INFO(get_logger(), ""); 
-
-
     std::lock_guard<std::mutex> estimator_lock(pose_estimator_mutex);
     if (!pose_estimator) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5.0, "waiting for initial pose input!!");
@@ -239,9 +251,7 @@ private:
     if (!use_imu) {
       pose_estimator->predict(stamp);
     } else {
-      
       std::lock_guard<std::mutex> lock(imu_data_mutex);
-      // RCLCPP_INFO(get_logger(),"imu size is : %d ", imu_data.size());
       auto imu_iter = imu_data.begin();
       for (imu_iter; imu_iter != imu_data.end(); imu_iter++) {
         if (rclcpp::Time(stamp) < rclcpp::Time((*imu_iter)->header.stamp)) {

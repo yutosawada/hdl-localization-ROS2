@@ -19,6 +19,11 @@ PoseEstimator::PoseEstimator(pcl::Registration<PointT, PointT>::Ptr& registratio
     : init_stamp(stamp), registration(registration), cool_time_duration(cool_time_duration) {
 
   prev_stamp = rclcpp::Time((int64_t)0, init_stamp.get_clock_type());
+  // last_correction_stamp は default 構築だと RCL_SYSTEM_TIME になり、
+  // hdl_localization_nodelet 側で last_correction_time() != rclcpp::Time(0, RCL_ROS_TIME)
+  // と比較した瞬間にクロック種別不一致で std::runtime_error が throw される.
+  // init_stamp と同じクロック種別で 0 初期化することで第一フレームから整合させる.
+  last_correction_stamp = rclcpp::Time((int64_t)0, init_stamp.get_clock_type());
   last_observation = Eigen::Matrix4f::Identity();
   last_observation.block<3, 3>(0, 0) = quat.toRotationMatrix();
   last_observation.block<3, 1>(0, 3) = pos;
